@@ -1,0 +1,25 @@
+version: '3.3'
+services:
+  db:
+    container_name: test-db
+    image: postgres
+    healthcheck:
+      test: "exit 0"
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+#    volumes:
+#      - pgdata:/var/lib/posgresql/data
+    ports:
+      - ${DB_PORT}:${DB_PORT}
+  adminer:
+    container_name: test-adminer
+    image: adminer
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+#volumes:
+#  pgdata:

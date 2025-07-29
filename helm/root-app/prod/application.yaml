@@ -1,0 +1,55 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: migration-crd-backend
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    namespace: migration-crd
+    server: 'https://kubernetes.default.svc'
+  project: migration-crd
+  source:
+    repoURL: git@github.com:ThomasHerve/migration-crd.git
+    path: helm/backend
+    targetRevision: main
+    helm:
+      valueFiles:
+        - envs/prod/helm/values.yaml
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - PruneLast=true
+      - CreateNamespace=true
+      - Validate=true
+  ignoreDifferences:
+    # pod toleration causes a diff because the target cluster is different
+    - group: ""
+      kind: Pod
+      jsonPointers:
+        - /spec/tolerations
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: migration-crd-postgresql
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    namespace: migration-crd
+    server: 'https://kubernetes.default.svc'
+  project: migration-crd
+  source:
+    repoURL: 'git@github.com:ThomasHerve/migration-crd.git'
+    path: helm/postgresql
+    targetRevision: main
+    helm:
+      valueFiles:
+        - envs/prod/values.yaml
+  syncPolicy:
+    automated: {}

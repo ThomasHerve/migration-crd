@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolume # Create PV 
+metadata:
+  name: pv # Sets PV name
+spec:
+  storageClassName: manual
+  persistentVolumeReclaimPolicy: Retain
+  capacity:
+    storage: 10Gi # Sets PV's size
+  accessModes:
+    - ReadWriteMany
+  hostPath:
+    path: "/mnt/disk/vol1"

@@ -1,0 +1,18 @@
+global:
+  postgresql:
+    auth:
+      postgresPassword: "workdb123"
+      username: "postgres"
+      password: "workdb123"
+      database: "work_db"
+      existingSecret: ""
+      secretKeys:
+        adminPasswordKey: ""
+        userPasswordKey: ""
+        replicationPasswordKey: ""
+auth:
+  enablePostgresUser: true
+  database: "workdb"
+  password: "workdb123"
+  postgresPassword: "workdb123"
+  username: "postgres"
