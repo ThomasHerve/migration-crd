@@ -54,10 +54,10 @@ ingress:
       paths:
         - path: /
           pathType: ImplementationSpecific
-  tls: 
-    - secretName: ingress-cert
-      hosts:
-        - migration-crd.thomas-herve.fr
+  #tls: 
+  #  - secretName: ingress-cert
+  #    hosts:
+  #      - migration-crd.thomas-herve.fr
 
 resources:
   # We usually recommend not to specify default resources and to leave this as a conscious
