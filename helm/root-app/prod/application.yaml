@@ -10,7 +10,7 @@ spec:
   destination:
     namespace: migration-crd
     server: 'https://kubernetes.default.svc'
-  project: migration-crd
+  project: default
   source:
     repoURL: https://github.com/ThomasHerve/migration-crd.git
     path: helm/backend
@@ -43,7 +43,7 @@ spec:
   destination:
     namespace: migration-crd
     server: 'https://kubernetes.default.svc'
-  project: migration-crd
+  project: default
   source:
     repoURL: 'https://github.com/ThomasHerve/migration-crd.git'
     path: helm/postgresql
