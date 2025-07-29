@@ -12,7 +12,7 @@ spec:
     server: 'https://kubernetes.default.svc'
   project: migration-crd
   source:
-    repoURL: git@github.com:ThomasHerve/migration-crd.git
+    repoURL: https://github.com/ThomasHerve/migration-crd.git
     path: helm/backend
     targetRevision: main
     helm:
@@ -45,7 +45,7 @@ spec:
     server: 'https://kubernetes.default.svc'
   project: migration-crd
   source:
-    repoURL: 'git@github.com:ThomasHerve/migration-crd.git'
+    repoURL: 'https://github.com/ThomasHerve/migration-crd.git'
     path: helm/postgresql
     targetRevision: main
     helm:
