@@ -88,7 +88,7 @@ namespace: ""
 
 envs:
 - name: DB_HOST
-  value: 'blind-test-postgresql.blind-test.svc.cluster.local'
+  value: 'migration-crd-postgresql.migration-crd.svc.cluster.local'
 - name: DB_PORT
   value: 5432
 - name: DB_USERNAME
