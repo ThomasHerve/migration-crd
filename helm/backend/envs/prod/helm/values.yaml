@@ -1,4 +1,4 @@
-namespace: blind-test
+namespace: migration-crd
 ingress:
   enabled: true
   annotations:
@@ -6,7 +6,7 @@ ingress:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
     #cert-manager.io/cluster-issuer: letsencrypt-prod
 image:
-  repository: thomasherve/blind-test-backend
+  repository: thomasherve/migration-crd-backend
   pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
   tag: "latest"

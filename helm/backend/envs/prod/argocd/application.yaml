@@ -2,15 +2,15 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: blind-test
+  name: migration-crd
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   destination:
-    namespace: blind-test
+    namespace: migration-crd
     server: 'https://kubernetes.default.svc'
-  project: blind-test
+  project: migration-crd
   source:
     repoURL: git@github.com:ThomasHerve/tournament-helm.git
     path: root-app/prod

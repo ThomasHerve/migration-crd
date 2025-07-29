@@ -5,10 +5,10 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule,  { cors: true });
     const config = new DocumentBuilder()
-    .setTitle('blind test backend api')
-    .setDescription('The blind test backend API')
+    .setTitle('migration crd backend api')
+    .setDescription('The migration crd backend API')
     .setVersion('1.0')
-    .addTag('blind-test')
+    .addTag('migration-crd')
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);

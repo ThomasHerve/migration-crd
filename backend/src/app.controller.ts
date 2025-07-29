@@ -13,7 +13,7 @@ export class AppController {
   }
 
   @Post('create')
-  async createBlind(@Body() createEntryDto: CreateEntryDto, @Request() req) {
+  async createEntry(@Body() createEntryDto: CreateEntryDto, @Request() req) {
     try {
       return this.appService.createEntry(createEntryDto.title);
     } catch(e) {

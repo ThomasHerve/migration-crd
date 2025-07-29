@@ -4,7 +4,7 @@ import { Column, Entity, JoinColumn, JoinTable, ManyToMany, ManyToOne, OneToMany
 export class Entry {
   @PrimaryGeneratedColumn({
     type: 'bigint',
-    name: 'blind_id',
+    name: 'entry_id',
   })
   id: number;
 

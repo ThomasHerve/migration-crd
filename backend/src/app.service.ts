@@ -18,7 +18,7 @@ export class AppService {
             title: title,
         });
 
-        const savedBlind = await this.EntriesRepository.save(newEntry);
+        const savedEntry = await this.EntriesRepository.save(newEntry);
 
         return this.getHello()
   }
