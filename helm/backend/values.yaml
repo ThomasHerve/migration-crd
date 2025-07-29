@@ -97,5 +97,3 @@ envs:
   value: 'workdb123'
 - name: DB_NAME
   value: 'work_db'
-- name: YOUTUBE_API_KEY
-  value: ''
