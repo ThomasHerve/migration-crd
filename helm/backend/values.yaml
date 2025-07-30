@@ -49,7 +49,6 @@ ingress:
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
-    argocd.argoproj.io/ignore: "true"
   hosts:
     - host: migration-crd.local
       paths:
