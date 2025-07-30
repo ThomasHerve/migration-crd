@@ -50,7 +50,7 @@ ingress:
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
   hosts:
-    - host: localhost
+    - host: migration-crd.local
       paths:
         - path: /
           pathType: ImplementationSpecific
