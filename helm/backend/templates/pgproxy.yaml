@@ -2,7 +2,7 @@ apiVersion: database.thomas-herve.fr/v1alpha1
 kind: PgProxy
 metadata:
   name: my-proxy
-  namespace: default
+  namespace: migration-crd-postgresql-proxy
 spec:
   deploymentName: {{ include "migration-crd.fullname" . }}
   namespace: migration-crd
