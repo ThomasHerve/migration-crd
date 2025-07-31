@@ -2,14 +2,14 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "tournament.fullname" . }}
+  name: {{ include "migration-crd.fullname" . }}
   labels:
-    {{- include "tournament.labels" . | nindent 4 }}
+    {{- include "migration-crd.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "tournament.fullname" . }}
+    name: {{ include "migration-crd.fullname" . }}
   minReplicas: {{ .Values.autoscaling.minReplicas }}
   maxReplicas: {{ .Values.autoscaling.maxReplicas }}
   metrics:

@@ -1,7 +1,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "tournament.name" -}}
+{{- define "migration-crd.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -10,7 +10,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
 */}}
-{{- define "tournament.fullname" -}}
+{{- define "migration-crd.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -26,16 +26,16 @@ If release name contains chart name it will be used as a full name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "tournament.chart" -}}
+{{- define "migration-crd.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define "tournament.labels" -}}
-helm.sh/chart: {{ include "tournament.chart" . }}
-{{ include "tournament.selectorLabels" . }}
+{{- define "migration-crd.labels" -}}
+helm.sh/chart: {{ include "migration-crd.chart" . }}
+{{ include "migration-crd.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -45,17 +45,17 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define "tournament.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "tournament.name" . }}
+{{- define "migration-crd.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "migration-crd.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 Create the name of the service account to use
 */}}
-{{- define "tournament.serviceAccountName" -}}
+{{- define "migration-crd.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "tournament.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "migration-crd.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}

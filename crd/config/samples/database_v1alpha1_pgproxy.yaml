@@ -1,0 +1,9 @@
+apiVersion: database.thomas-herve.fr/v1alpha1
+kind: PgProxy
+metadata:
+  labels:
+    app.kubernetes.io/name: crd
+    app.kubernetes.io/managed-by: kustomize
+  name: pgproxy-sample
+spec:
+  # TODO(user): Add fields here

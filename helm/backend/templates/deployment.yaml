@@ -1,9 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "tournament.fullname" . }}
+  name: {{ include "migration-crd.fullname" . }}
   labels:
-    {{- include "tournament.labels" . | nindent 4 }}
+    {{- include "migration-crd.labels" . | nindent 4 }}
   annotations:
       keel.sh/policy: force
       keel.sh/trigger: poll      
@@ -14,7 +14,7 @@ spec:
   {{- end }}
   selector:
     matchLabels:
-      {{- include "tournament.selectorLabels" . | nindent 6 }}
+      {{- include "migration-crd.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -22,10 +22,10 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "tournament.selectorLabels" . | nindent 8 }}
+        {{- include "migration-crd.selectorLabels" . | nindent 8 }}
     spec:
       revisionHistoryLimit: 1
-      serviceAccountName: {{ include "tournament.serviceAccountName" . }}
+      serviceAccountName: {{ include "migration-crd.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:

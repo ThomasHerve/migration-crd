@@ -1,0 +1,10 @@
+apiVersion: database.thomas-herve.fr/v1alpha1
+kind: PgProxy
+metadata:
+  name: my-proxy
+  namespace: default
+spec:
+  deploymentName: {{ include "migration-crd.fullname" . }}
+  namespace: migration-crd
+  postgresServiceHost: migration-crd-postgresql.migration-crd.svc.cluster.local
+  postgresServicePort: 5432
