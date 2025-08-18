@@ -1,68 +1,95 @@
 /*
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+Package v1alpha1 contains API Schema definitions for the database v1alpha1 API group
++kubebuilder:object:generate=true
++kubebuilder:resource:path=pgproxies,scope=Namespaced
++kubebuilder:subresource:status
 */
-
 package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // PgProxySpec defines the desired state of PgProxy
+// +kubebuilder:printcolumn:name="Deployment",type=string,JSONPath=".spec.deploymentName"
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=".status.phase"
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=".metadata.creationTimestamp"
+
 type PgProxySpec struct {
+	// Name of the application Deployment to proxy and migrate
 	DeploymentName string `json:"deploymentName"`
-	// Namespace du Deployment et du service PostgreSQL
+	// Namespace where the Deployment resides and resources will be created
 	Namespace string `json:"namespace"`
-	// Host/IP du service PostgreSQL
+
+	// PostgreSQL settings
+	// Host or service name of the production PostgreSQL
 	PostgresServiceHost string `json:"postgresServiceHost"`
-	// Port du service PostgreSQL
+	// Port of the production PostgreSQL
 	PostgresServicePort int32 `json:"postgresServicePort"`
+
+	// Migration settings (optional)
+	// Secret containing credentials to dump and restore the database
+	DumpSecret string `json:"dumpSecret,omitempty"`
+	// Image containing the migration logic
+	MigrationContainerImage string `json:"migrationContainerImage,omitempty"`
 }
 
-// PgProxyStatus defines the observed state of PgProxy.
-type PgProxyStatus struct {
-	// état du proxy (Ready, Error…)
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
-}
+// PgProxyPhase represents the lifecycle phase of the proxy/migration workflow
+type PgProxyPhase string
 
-// +kubebuilder:object:root=true
+const (
+	// PhasePending: CRD created but no action taken yet
+	PhasePending PgProxyPhase = "Pending"
+	// PhaseProxying: Only proxy is active
+	PhaseProxying PgProxyPhase = "Proxying"
+	// PhasePreparing: Temp database provisioning and restore in progress
+	PhasePreparing PgProxyPhase = "Preparing"
+	// PhaseSwitching: Traffic switched to temporary database
+	PhaseSwitching PgProxyPhase = "Switching"
+	// PhaseMigrating: Running migrations on real database
+	PhaseMigrating PgProxyPhase = "Migrating"
+	// PhaseBuffering: Writes to temp DB are being buffered
+	PhaseBuffering PgProxyPhase = "Buffering"
+	// PhaseReplaying: Replaying buffered writes to the migrated database
+	PhaseReplaying PgProxyPhase = "Replaying"
+	// PhaseFinalizing: Final traffic switch and cleanup
+	PhaseFinalizing PgProxyPhase = "Finalizing"
+	// PhaseCompleted: Workflow finished successfully
+	PhaseCompleted PgProxyPhase = "Completed"
+	// PhaseFailed: Workflow encountered an error
+	PhaseFailed PgProxyPhase = "Failed"
+)
+
+// PgProxyStatus defines the observed state of PgProxy
 // +kubebuilder:subresource:status
 
-// PgProxy is the Schema for the pgproxies API
-type PgProxy struct {
-	metav1.TypeMeta `json:",inline"`
-
-	// metadata is a standard object metadata
-	// +optional
-	metav1.ObjectMeta `json:"metadata,omitempty,omitzero"`
-
-	// spec defines the desired state of PgProxy
-	// +required
-	Spec PgProxySpec `json:"spec"`
-
-	// status defines the observed state of PgProxy
-	// +optional
-	Status PgProxyStatus `json:"status,omitempty,omitzero"`
+type PgProxyStatus struct {
+	// Current phase of the workflow
+	Phase PgProxyPhase `json:"phase,omitempty"`
+	// Conditions represent detailed status conditions
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	// ServiceName of the active proxy Service
+	ServiceName string `json:"serviceName,omitempty"`
 }
 
-// +kubebuilder:object:root=true
+//+kubebuilder:object:root=true
+//+kubebuilder:object:subresource:status
+
+// PgProxy is the Schema for the pgproxies API
+// Combines proxy pass-through and migration workflow
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type PgProxy struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   PgProxySpec   `json:"spec,omitempty"`
+	Status PgProxyStatus `json:"status,omitempty"`
+}
+
+//+kubebuilder:object:root=true
 
 // PgProxyList contains a list of PgProxy
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type PgProxyList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

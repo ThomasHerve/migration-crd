@@ -8,6 +8,7 @@ metadata:
       keel.sh/policy: force
       keel.sh/trigger: poll      
       keel.sh/pollSchedule: "@every 10m"
+      database.thomas-herve.fr/migrate: {{ .Values.migrate | quote }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
@@ -24,7 +25,6 @@ spec:
       labels:
         {{- include "migration-crd.selectorLabels" . | nindent 8 }}
     spec:
-      revisionHistoryLimit: 1
       serviceAccountName: {{ include "migration-crd.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}

@@ -4,6 +4,8 @@
 
 replicaCount: 1
 
+migrate: false
+
 image:
   repository: nginx
   pullPolicy: IfNotPresent

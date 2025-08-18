@@ -17,7 +17,9 @@ spec:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: PgProxy is the Schema for the pgproxies API
+        description: |-
+          PgProxy is the Schema for the pgproxies API
+          Combines proxy pass-through and migration workflow
         properties:
           apiVersion:
             description: |-
@@ -37,18 +39,29 @@ spec:
           metadata:
             type: object
           spec:
-            description: spec defines the desired state of PgProxy
             properties:
               deploymentName:
+                description: Name of the application Deployment to proxy and migrate
+                type: string
+              dumpSecret:
+                description: |-
+                  Migration settings (optional)
+                  Secret containing credentials to dump and restore the database
+                type: string
+              migrationContainerImage:
+                description: Image containing the migration logic
                 type: string
               namespace:
-                description: Namespace du Deployment et du service PostgreSQL
+                description: Namespace where the Deployment resides and resources
+                  will be created
                 type: string
               postgresServiceHost:
-                description: Host/IP du service PostgreSQL
+                description: |-
+                  PostgreSQL settings
+                  Host or service name of the production PostgreSQL
                 type: string
               postgresServicePort:
-                description: Port du service PostgreSQL
+                description: Port of the production PostgreSQL
                 format: int32
                 type: integer
             required:
@@ -58,10 +71,9 @@ spec:
             - postgresServicePort
             type: object
           status:
-            description: status defines the observed state of PgProxy
             properties:
               conditions:
-                description: état du proxy (Ready, Error…)
+                description: Conditions represent detailed status conditions
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -117,11 +129,13 @@ spec:
                   - type
                   type: object
                 type: array
+              phase:
+                description: Current phase of the workflow
+                type: string
+              serviceName:
+                description: ServiceName of the active proxy Service
+                type: string
             type: object
-        required:
-        - spec
         type: object
     served: true
     storage: true
-    subresources:
-      status: {}
