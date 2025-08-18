@@ -90,7 +90,7 @@ namespace: ""
 
 envs:
 - name: DB_HOST
-  value: 'migration-crd-postgresql-proxy.migration-crd.svc.cluster.local'
+  value: 'migration-crd-postgresql-proxy-svc.migration-crd.svc.cluster.local'
 - name: DB_PORT
   value: 5432
 - name: DB_USERNAME
