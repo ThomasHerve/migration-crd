@@ -6,6 +6,9 @@ replicaCount: 1
 
 migrate: false
 
+baseservice:
+  enabled: false
+
 image:
   repository: nginx
   pullPolicy: IfNotPresent

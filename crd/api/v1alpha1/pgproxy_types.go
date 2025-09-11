@@ -13,6 +13,7 @@ import (
 // PgProxySpec defines the desired state of PgProxy
 // +kubebuilder:printcolumn:name="Deployment",type=string,JSONPath=".spec.deploymentName"
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=".status.phase"
+// +kubebuilder:printcolumn:name="ServiceStatus",type=string,JSONPath=".status.serviceStatus"
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=".metadata.creationTimestamp"
 
 type PgProxySpec struct {
@@ -60,6 +61,17 @@ const (
 	PhaseFailed PgProxyPhase = "Failed"
 )
 
+type PgProxyServiceStatus string
+
+const (
+	// ServiceStatusEmpty: CRD created but no action taken yet
+	ServiceStatusEmpty PgProxyServiceStatus = "Empty"
+	// ServiceStatusNormal: The service point on the normal db
+	ServiceStatusNormal PgProxyServiceStatus = "Normal"
+	// ServiceStatusEmpty: The service point on the proxy
+	ServiceStatusProxy PgProxyServiceStatus = "Proxy"
+)
+
 // PgProxyStatus defines the observed state of PgProxy
 // +kubebuilder:subresource:status
 
@@ -70,6 +82,8 @@ type PgProxyStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 	// ServiceName of the active proxy Service
 	ServiceName string `json:"serviceName,omitempty"`
+	// ServiceStatus represent in which state the service leading to the db is is
+	ServiceStatus string `json:"serviceStatus,omitempty"`
 }
 
 //+kubebuilder:object:root=true

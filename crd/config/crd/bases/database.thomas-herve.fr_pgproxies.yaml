@@ -135,6 +135,10 @@ spec:
               serviceName:
                 description: ServiceName of the active proxy Service
                 type: string
+              serviceStatus:
+                description: ServiceStatus represent in which state the service leading
+                  to the db is is
+                type: string
             type: object
         type: object
     served: true

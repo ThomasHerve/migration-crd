@@ -34,158 +34,35 @@ type PgProxyReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=database.thomas-herve.fr,resources=pgproxies,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=database.thomas-herve.fr,resources=pgproxies/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;update;patch
-// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
-
-func (r *PgProxyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx)
-
-	var proxy databasev1alpha1.PgProxy
-	if err := r.Get(ctx, req.NamespacedName, &proxy); err != nil {
-		if apierrors.IsNotFound(err) {
-			// ressource supprimée
-			return ctrl.Result{}, nil
-		}
-		return ctrl.Result{}, err
-	}
-
-	// Find the Deployment referenced by this PgProxy
-	if proxy.Spec.Namespace == "" {
-		proxy.Spec.Namespace = req.Namespace
-	}
-
-	deploy := &appsv1.Deployment{}
-	if err := r.Get(ctx, types.NamespacedName{Name: proxy.Spec.DeploymentName, Namespace: proxy.Spec.Namespace}, deploy); err != nil {
-		logger.Error(err, "unable to get Deployment", "name", proxy.Spec.DeploymentName)
-		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
-	}
-
-	// Check if the deployment has the migrate annotation
-	deployAnno := deploy.Annotations
-	trigger := false
-	if deployAnno != nil {
-		if v, ok := deployAnno[AnnotationTrigger]; ok && (v == "true" || v == "1") {
-			trigger = true
-		}
-	}
-
-	// If no trigger, ensure status is at least Pending/Proxying and bail
-	if !trigger && proxy.Status.Phase == "" {
-		proxy.Status.Phase = databasev1alpha1.PhasePending
-		_ = r.Status().Update(ctx, &proxy)
-		return ctrl.Result{}, nil
-	}
-
-	// state machine based on proxy.Status.Phase
-	switch proxy.Status.Phase {
-	case "":
-		proxy.Status.Phase = databasev1alpha1.PhasePreparing
-		_ = r.Status().Update(ctx, &proxy)
-		return ctrl.Result{Requeue: true}, nil
-
-	case databasev1alpha1.PhasePreparing:
-		logger.Info("PhasePreparing: provisioning temp DB and restoring dump")
-		if err := r.ensureTempDBAndRestore(ctx, &proxy); err != nil {
-			logger.Error(err, "ensureTempDBAndRestore failed")
-			proxy.Status.Phase = databasev1alpha1.PhaseFailed
-			_ = r.Status().Update(ctx, &proxy)
-			return ctrl.Result{}, err
-		}
-		proxy.Status.Phase = databasev1alpha1.PhaseSwitching
-		_ = r.Status().Update(ctx, &proxy)
-		return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
-
-	case databasev1alpha1.PhaseSwitching:
-		logger.Info("PhaseSwitching: patching Service to point to temp DB and forcing new pods to use real DB")
-		if err := r.switchTrafficToTempAndTriggerNewPods(ctx, &proxy, deploy); err != nil {
-			logger.Error(err, "switchTraffic failed")
-			proxy.Status.Phase = databasev1alpha1.PhaseFailed
-			_ = r.Status().Update(ctx, &proxy)
-			return ctrl.Result{}, err
-		}
-		proxy.Status.Phase = databasev1alpha1.PhaseMigrating
-		_ = r.Status().Update(ctx, &proxy)
-		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
-
-	case databasev1alpha1.PhaseMigrating:
-		logger.Info("PhaseMigrating: waiting for new pods to finish migration")
-		// We need a signal that new pods have finished migration.
-		// For this skeleton we look for a Job completion or a Deployment condition / custom signal.
-		ok, err := r.checkMigrationCompleted(ctx, &proxy)
-		if err != nil {
-			logger.Error(err, "checkMigrationCompleted error")
-			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
-		}
-		if !ok {
-			// still migrating
-			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
-		}
-
-		// start buffering phase (proxy already captures SQL into a buffer)
-		proxy.Status.Phase = databasev1alpha1.PhaseBuffering
-		_ = r.Status().Update(ctx, &proxy)
-		return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
-
-	case databasev1alpha1.PhaseBuffering:
-		logger.Info("PhaseBuffering: ensure buffer is healthy / capturing")
-		// Ideally check proxy buffer size or health
-		// Transition to Replaying when migration done for real DB + buffer ready to replay
-		readyToReplay, err := r.checkReadyToReplay(ctx, &proxy)
-		if err != nil {
-			logger.Error(err, "checkReadyToReplay")
-			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
-		}
-		if !readyToReplay {
-			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
-		}
-		proxy.Status.Phase = databasev1alpha1.PhaseReplaying
-		_ = r.Status().Update(ctx, &proxy)
-		return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
-
-	case databasev1alpha1.PhaseReplaying:
-		logger.Info("PhaseReplaying: replaying buffer into migrated DB")
-		if err := r.replayBufferIntoRealDB(ctx, &proxy); err != nil {
-			logger.Error(err, "replayBufferIntoRealDB failed")
-			proxy.Status.Phase = databasev1alpha1.PhaseFailed
-			_ = r.Status().Update(ctx, &proxy)
-			return ctrl.Result{}, err
-		}
-		proxy.Status.Phase = databasev1alpha1.PhaseFinalizing
-		_ = r.Status().Update(ctx, &proxy)
-		return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
-
-	case databasev1alpha1.PhaseFinalizing:
-		logger.Info("PhaseFinalizing: restore original Service and cleanup")
-		if err := r.restoreOriginalServiceAndCleanup(ctx, &proxy); err != nil {
-			logger.Error(err, "cleanup failed")
-			proxy.Status.Phase = databasev1alpha1.PhaseFailed
-			_ = r.Status().Update(ctx, &proxy)
-			return ctrl.Result{}, err
-		}
-		proxy.Status.Phase = databasev1alpha1.PhaseCompleted
-		_ = r.Status().Update(ctx, &proxy)
-		return ctrl.Result{}, nil
-
-	case databasev1alpha1.PhaseCompleted:
-		// nothing to do
-		return ctrl.Result{}, nil
-
-	case databasev1alpha1.PhaseFailed:
-		// noop, or try to rollback depending on policy
-		return ctrl.Result{}, nil
-
-	default:
-		logger.Info("unknown phase", "phase", proxy.Status.Phase)
-		return ctrl.Result{}, nil
-	}
-}
-
 // Helpers (skeletons) -------------------------------------------------------
+
+func (r *PgProxyReconciler) createBaseService(ctx context.Context, proxy *databasev1alpha1.PgProxy) error {
+	if svc == nil {
+		svc := &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      tempSvcName,
+				Namespace: proxy.Spec.Namespace,
+				Labels:    map[string]string{"pgproxy": proxy.Name},
+			},
+			Spec: corev1.ServiceSpec{
+				Ports: []corev1.ServicePort{{
+					Port:       proxy.Spec.PostgresServicePort,
+					TargetPort: intstr.FromInt(int(proxy.Spec.PostgresServicePort)),
+				}},
+				Selector: map[string]string{"pgproxy-temp": proxy.Name},
+			},
+		}
+		if err := ctrl.SetControllerReference(proxy, svc, r.Scheme); err != nil {
+			return err
+		}
+		if err := r.Create(ctx, svc); err != nil && !apierrors.IsAlreadyExists(err) {
+			return err
+		}
+	} else {
+		// Patch to base
+	}
+	return nil
+}
 
 func (r *PgProxyReconciler) ensureTempDBAndRestore(ctx context.Context, proxy *databasev1alpha1.PgProxy) error {
 	// 1) create a StatefulSet for a temporary Postgres instance
@@ -199,7 +76,7 @@ func (r *PgProxyReconciler) ensureTempDBAndRestore(ctx context.Context, proxy *d
 	tempSvcName := fmt.Sprintf("%s-temp-db-svc", proxy.Name)
 	stsName := fmt.Sprintf("%s-temp-db", proxy.Name)
 
-	// 1) create Service (ClusterIP)
+	// 1) create Service for db (ClusterIP)
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      tempSvcName,
@@ -214,13 +91,13 @@ func (r *PgProxyReconciler) ensureTempDBAndRestore(ctx context.Context, proxy *d
 			Selector: map[string]string{"pgproxy-temp": proxy.Name},
 		},
 	}
+
 	if err := ctrl.SetControllerReference(proxy, svc, r.Scheme); err != nil {
 		return err
 	}
 	if err := r.Create(ctx, svc); err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
-
 	// 2) create StatefulSet for postgres (very simple)
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -523,4 +400,165 @@ func (r *PgProxyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&databasev1alpha1.PgProxy{}).
 		Complete(r)
+}
+
+// +kubebuilder:rbac:groups=database.thomas-herve.fr,resources=pgproxies,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=database.thomas-herve.fr,resources=pgproxies/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
+
+func (r *PgProxyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+
+	var proxy databasev1alpha1.PgProxy
+	if err := r.Get(ctx, req.NamespacedName, &proxy); err != nil {
+		if apierrors.IsNotFound(err) {
+			// ressource supprimée
+			return ctrl.Result{}, nil
+		}
+		return ctrl.Result{}, err
+	}
+
+	// Find the Deployment referenced by this PgProxy
+	if proxy.Spec.Namespace == "" {
+		proxy.Spec.Namespace = req.Namespace
+	}
+
+	deploy := &appsv1.Deployment{}
+	if err := r.Get(ctx, types.NamespacedName{Name: proxy.Spec.DeploymentName, Namespace: proxy.Spec.Namespace}, deploy); err != nil {
+		logger.Error(err, "unable to get Deployment", "name", proxy.Spec.DeploymentName)
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+	}
+
+	// Check if the deployment has the migrate annotation
+	deployAnno := deploy.Annotations
+	trigger := false
+	if deployAnno != nil {
+		if v, ok := deployAnno[AnnotationTrigger]; ok && (v == "true" || v == "1") {
+			trigger = true
+		}
+	}
+	/*
+		logger.Info("--------------------")
+		logger.Info(proxy.Status.Phase)
+		logger.Info("--------------------")
+	*/
+	// If no trigger, ensure status is at least Pending/Proxying and bail
+	if !trigger && proxy.Status.Phase == "" {
+		proxy.Status.Phase = databasev1alpha1.PhasePending
+		if err := createBaseService(ctx, &proxy); err != nil {
+			logger.Error(err, "create base service failed")
+			proxy.Status.Phase = databasev1alpha1.PhaseFailed
+			_ = r.Status().Update(ctx, &proxy)
+			return ctrl.Result{}, err
+		}
+		_ = r.Status().Update(ctx, &proxy)
+		return ctrl.Result{}, nil
+	}
+
+	// state machine based on proxy.Status.Phase
+	switch proxy.Status.Phase {
+	case "":
+		proxy.Status.Phase = databasev1alpha1.PhasePreparing
+		_ = r.Status().Update(ctx, &proxy)
+		return ctrl.Result{Requeue: true}, nil
+
+	case databasev1alpha1.PhasePreparing:
+		logger.Info("PhasePreparing: provisioning temp DB and restoring dump")
+		if err := r.ensureTempDBAndRestore(ctx, &proxy); err != nil {
+			logger.Error(err, "ensureTempDBAndRestore failed")
+			proxy.Status.Phase = databasev1alpha1.PhaseFailed
+			_ = r.Status().Update(ctx, &proxy)
+			return ctrl.Result{}, err
+		}
+		proxy.Status.Phase = databasev1alpha1.PhaseSwitching
+		_ = r.Status().Update(ctx, &proxy)
+		return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
+
+	case databasev1alpha1.PhaseSwitching:
+		logger.Info("PhaseSwitching: patching Service to point to temp DB and forcing new pods to use real DB")
+		if err := r.switchTrafficToTempAndTriggerNewPods(ctx, &proxy, deploy); err != nil {
+			logger.Error(err, "switchTraffic failed")
+			proxy.Status.Phase = databasev1alpha1.PhaseFailed
+			_ = r.Status().Update(ctx, &proxy)
+			return ctrl.Result{}, err
+		}
+		proxy.Status.Phase = databasev1alpha1.PhaseMigrating
+		_ = r.Status().Update(ctx, &proxy)
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+
+	case databasev1alpha1.PhaseMigrating:
+		logger.Info("PhaseMigrating: waiting for new pods to finish migration")
+		// We need a signal that new pods have finished migration.
+		// For this skeleton we look for a Job completion or a Deployment condition / custom signal.
+		ok, err := r.checkMigrationCompleted(ctx, &proxy)
+		if err != nil {
+			logger.Error(err, "checkMigrationCompleted error")
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		}
+		if !ok {
+			// still migrating
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		}
+
+		// start buffering phase (proxy already captures SQL into a buffer)
+		proxy.Status.Phase = databasev1alpha1.PhaseBuffering
+		_ = r.Status().Update(ctx, &proxy)
+		return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
+
+	case databasev1alpha1.PhaseBuffering:
+		logger.Info("PhaseBuffering: ensure buffer is healthy / capturing")
+		// Ideally check proxy buffer size or health
+		// Transition to Replaying when migration done for real DB + buffer ready to replay
+		readyToReplay, err := r.checkReadyToReplay(ctx, &proxy)
+		if err != nil {
+			logger.Error(err, "checkReadyToReplay")
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		}
+		if !readyToReplay {
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		}
+		proxy.Status.Phase = databasev1alpha1.PhaseReplaying
+		_ = r.Status().Update(ctx, &proxy)
+		return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
+
+	case databasev1alpha1.PhaseReplaying:
+		logger.Info("PhaseReplaying: replaying buffer into migrated DB")
+		if err := r.replayBufferIntoRealDB(ctx, &proxy); err != nil {
+			logger.Error(err, "replayBufferIntoRealDB failed")
+			proxy.Status.Phase = databasev1alpha1.PhaseFailed
+			_ = r.Status().Update(ctx, &proxy)
+			return ctrl.Result{}, err
+		}
+		proxy.Status.Phase = databasev1alpha1.PhaseFinalizing
+		_ = r.Status().Update(ctx, &proxy)
+		return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
+
+	case databasev1alpha1.PhaseFinalizing:
+		logger.Info("PhaseFinalizing: restore original Service and cleanup")
+		if err := r.restoreOriginalServiceAndCleanup(ctx, &proxy); err != nil {
+			logger.Error(err, "cleanup failed")
+			proxy.Status.Phase = databasev1alpha1.PhaseFailed
+			_ = r.Status().Update(ctx, &proxy)
+			return ctrl.Result{}, err
+		}
+		proxy.Status.Phase = databasev1alpha1.PhaseCompleted
+		_ = r.Status().Update(ctx, &proxy)
+		return ctrl.Result{}, nil
+
+	case databasev1alpha1.PhaseCompleted:
+		// nothing to do
+		return ctrl.Result{}, nil
+
+	case databasev1alpha1.PhaseFailed:
+		// noop, or try to rollback depending on policy
+		return ctrl.Result{}, nil
+
+	default:
+		logger.Info("unknown phase", "phase", proxy.Status.Phase)
+		return ctrl.Result{}, nil
+	}
 }
