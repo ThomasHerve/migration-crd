@@ -6,5 +6,6 @@ metadata:
 spec:
   deploymentName: {{ include "migration-crd.fullname" . }}
   namespace: migration-crd
+  proxyServiceName: migration-crd-postgresql-proxy-svc
   postgresServiceHost: migration-crd-postgresql.migration-crd.svc.cluster.local
   postgresServicePort: 5432

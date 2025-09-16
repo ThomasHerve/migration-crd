@@ -7,7 +7,7 @@ replicaCount: 1
 migrate: false
 
 baseservice:
-  enabled: false
+  enabled: true
 
 image:
   repository: nginx
