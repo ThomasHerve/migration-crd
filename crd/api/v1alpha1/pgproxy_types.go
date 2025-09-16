@@ -85,7 +85,7 @@ type PgProxyStatus struct {
 	// ServiceName of the active proxy Service
 	ServiceName string `json:"serviceName,omitempty"`
 	// ServiceStatus represent in which state the service leading to the db is is
-	ServiceStatus string `json:"serviceStatus,omitempty"`
+	ServiceStatus PgProxyServiceStatus `json:"serviceStatus,omitempty"`
 }
 
 //+kubebuilder:object:root=true
