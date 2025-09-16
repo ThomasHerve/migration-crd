@@ -56,19 +56,23 @@ spec:
                   will be created
                 type: string
               postgresServiceHost:
-                description: |-
-                  PostgreSQL settings
-                  Host or service name of the production PostgreSQL
+                description: Host or service name of the production PostgreSQL
                 type: string
               postgresServicePort:
                 description: Port of the production PostgreSQL
                 format: int32
                 type: integer
+              proxyServiceName:
+                description: |-
+                  PostgreSQL settings
+                  Name of the service, use it to tell the deployment where to find the DB
+                type: string
             required:
             - deploymentName
             - namespace
             - postgresServiceHost
             - postgresServicePort
+            - proxyServiceName
             type: object
           status:
             properties:

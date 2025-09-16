@@ -34,32 +34,42 @@ type PgProxyReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// Helpers (skeletons) -------------------------------------------------------
+// Helpers -------------------------------------------------------
 
 func (r *PgProxyReconciler) createBaseService(ctx context.Context, proxy *databasev1alpha1.PgProxy) error {
-	if svc == nil {
+	if proxy.Status.ServiceStatus == "" || proxy.Status.ServiceStatus == databasev1alpha1.ServiceStatusEmpty {
+		svcName := proxy.Spec.ProxyServiceName
+
 		svc := &corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      tempSvcName,
-				Namespace: proxy.Spec.Namespace,
-				Labels:    map[string]string{"pgproxy": proxy.Name},
+				Name:      svcName,
+				Namespace: proxy.Namespace,
+				Labels: map[string]string{
+					"app": "pg-external",
+				},
 			},
 			Spec: corev1.ServiceSpec{
-				Ports: []corev1.ServicePort{{
-					Port:       proxy.Spec.PostgresServicePort,
-					TargetPort: intstr.FromInt(int(proxy.Spec.PostgresServicePort)),
-				}},
-				Selector: map[string]string{"pgproxy-temp": proxy.Name},
+				Type:         corev1.ServiceTypeExternalName,
+				ExternalName: proxy.Spec.PostgresServiceHost,
+				Ports: []corev1.ServicePort{
+					{
+						Name:       "postgres",
+						Port:       proxy.Spec.PostgresServicePort, // int32
+						TargetPort: intstr.FromInt(int(proxy.Spec.PostgresServicePort)),
+						Protocol:   corev1.ProtocolTCP,
+					},
+				},
 			},
 		}
-		if err := ctrl.SetControllerReference(proxy, svc, r.Scheme); err != nil {
+
+		if err := r.Client.Create(ctx, svc); err != nil {
+			if apierrors.IsAlreadyExists(err) {
+				return nil
+			}
 			return err
 		}
-		if err := r.Create(ctx, svc); err != nil && !apierrors.IsAlreadyExists(err) {
-			return err
-		}
-	} else {
-		// Patch to base
+
+		proxy.Status.ServiceStatus = databasev1alpha1.ServiceStatusNormal
 	}
 	return nil
 }

@@ -23,6 +23,8 @@ type PgProxySpec struct {
 	Namespace string `json:"namespace"`
 
 	// PostgreSQL settings
+	// Name of the service, use it to tell the deployment where to find the DB
+	ProxyServiceName string `json:"proxyServiceName"`
 	// Host or service name of the production PostgreSQL
 	PostgresServiceHost string `json:"postgresServiceHost"`
 	// Port of the production PostgreSQL
@@ -68,7 +70,7 @@ const (
 	ServiceStatusEmpty PgProxyServiceStatus = "Empty"
 	// ServiceStatusNormal: The service point on the normal db
 	ServiceStatusNormal PgProxyServiceStatus = "Normal"
-	// ServiceStatusEmpty: The service point on the proxy
+	// ServiceStatusProxy: The service point on the proxy
 	ServiceStatusProxy PgProxyServiceStatus = "Proxy"
 )
 
